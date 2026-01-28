@@ -74,7 +74,7 @@ void DRsimMaterials::CreateMaterials() {
 
   G4double fPPOMol = C->GetA()*15 + H->GetA()*11 + N->GetA()*1 + O->GetA()*1;
   G4MaterialPropertiesTable* mpPPO = new G4MaterialPropertiesTable();
-  mpPPO->AddConstProperty("PPOMol", fPPOMol/g);
+  mpPPO->AddConstProperty("PPOMol", fPPOMol/g, true);
   fPPO->SetMaterialPropertiesTable(mpPPO);
 
   // Bis-MSB
@@ -85,7 +85,7 @@ void DRsimMaterials::CreateMaterials() {
 
   G4double fBisMol = C->GetA()*24 + H->GetA()*22;
   G4MaterialPropertiesTable* mpBisMSB = new G4MaterialPropertiesTable();
-  mpBisMSB->AddConstProperty("BisMol", fBisMol/g);
+  mpBisMSB->AddConstProperty("BisMol", fBisMol/g, true);
   fBisMSB->SetMaterialPropertiesTable(mpBisMSB);
   
   // LAB
@@ -97,7 +97,7 @@ void DRsimMaterials::CreateMaterials() {
   
   G4double fLABMol = C->GetA()*18 + H->GetA()*30;
   G4MaterialPropertiesTable* mpLAB = new G4MaterialPropertiesTable();
-  mpLAB->AddConstProperty("LABMol", fLABMol/g);
+  mpLAB->AddConstProperty("LABMol", fLABMol/g, true);
   fLAB->SetMaterialPropertiesTable(mpLAB);
 
   // LS
