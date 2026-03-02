@@ -32,6 +32,14 @@ void DRsimSiPMSD::Initialize(G4HCofThisEvent* hce) {
 G4bool DRsimSiPMSD::ProcessHits(G4Step* step, G4TouchableHistory*) {
   if(step->GetTrack()->GetDefinition() != G4OpticalPhoton::OpticalPhotonDefinition()) return false;
 
+  // The SD is placed on PMTcellLogical (glass).  Only count the step where the
+  // photon reaches the photocathode boundary; all other steps inside PMTcell
+  // are traversal steps and should be ignored.
+  G4VPhysicalVolume* postVol = step->GetPostStepPoint()->GetPhysicalVolume();
+  if (!postVol || postVol->GetName() != "PMTcathPhysical") return false;
+
+  // PostStepPoint touchable: Volume(0)=PMTcathPhysical(copy 0),
+  //                           Volume(1)=PMTcellPhysical(copy=SiPMnum)
   G4int SiPMnum = step->GetPostStepPoint()->GetTouchable()->GetVolume(1)->GetCopyNo();
   G4int nofHits = fHitCollection->entries();
   G4double hitTime = step->GetPostStepPoint()->GetGlobalTime();
@@ -40,15 +48,6 @@ G4bool DRsimSiPMSD::ProcessHits(G4Step* step, G4TouchableHistory*) {
   DRsimSiPMHit* hit = NULL;
 
   for (G4int i = 0; i < nofHits; i++) {
-
-    // G4cout << " Hit iteration : " 
-    //        << i << " " 
-    //        << SiPMnum << " " 
-    //        << (*fHitCollection)[i]->GetSiPMnum() << " " 
-    //        << fModuleNum << " " 
-    //        << (*fHitCollection)[i]->GetModuleNum() << " "
-    //        << G4endl;
-    
     if ( (*fHitCollection)[i]->GetSiPMnum() == SiPMnum && (*fHitCollection)[i]->GetModuleNum() == fModuleNum ) {
       hit = (*fHitCollection)[i];
       break;

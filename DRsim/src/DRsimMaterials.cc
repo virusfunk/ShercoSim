@@ -182,10 +182,12 @@ void DRsimMaterials::CreateMaterials() {
   mpPS = new G4MaterialPropertiesTable();
   mpPS->AddProperty("RINDEX",opEn,RI_PS,nEnt);
   mpPS->AddProperty("ABSLENGTH",opEn,AbsLen_PS,nEnt);
-  mpPS->AddProperty("FASTCOMPONENT",opEn,scintFast_PS,nEnt);
+  // Geant4 ≥ 11.0: FASTCOMPONENT → SCINTILLATIONCOMPONENT1
+  mpPS->AddProperty("SCINTILLATIONCOMPONENT1",opEn,scintFast_PS,nEnt);
   mpPS->AddConstProperty("SCINTILLATIONYIELD",10./keV);
   mpPS->AddConstProperty("RESOLUTIONSCALE",1.0);
-  mpPS->AddConstProperty("FASTTIMECONSTANT",2.8*ns);
+  // Geant4 ≥ 11.0: FASTTIMECONSTANT → SCINTILLATIONTIMECONSTANT1
+  mpPS->AddConstProperty("SCINTILLATIONTIMECONSTANT1",2.8*ns);
   fPS->SetMaterialPropertiesTable(mpPS);
   fPS->GetIonisation()->SetBirksConstant(0.126*mm/MeV);
 

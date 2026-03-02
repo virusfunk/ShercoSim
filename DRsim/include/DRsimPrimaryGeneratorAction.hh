@@ -1,7 +1,11 @@
 #ifndef DRsimPrimaryGeneratorAction_h
 #define DRsimPrimaryGeneratorAction_h 1
 
+#ifdef USE_HEPMC3
 #include "HepMCG4Reader.hh"
+#endif
+
+#include "CORSIKAReader.hh"
 
 #include "globals.hh"
 #include "G4VUserPrimaryGeneratorAction.hh"
@@ -16,7 +20,9 @@ class G4ParticleDefinition;
 
 class DRsimPrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction {
 public:
-  DRsimPrimaryGeneratorAction(G4int seed, G4bool useHepMC, G4bool useCalib, G4bool useGPS);
+  DRsimPrimaryGeneratorAction(G4int seed, G4bool useHepMC, G4bool useCalib,
+                               G4bool useGPS, G4bool useCORSIKA,
+                               G4String corsikaDATpath = "");
   virtual ~DRsimPrimaryGeneratorAction();
 
   virtual void GeneratePrimaries(G4Event*);
@@ -35,6 +41,8 @@ public:
   void SetRandY(G4double randy) { fRandY = randy; }
   void SetRandZ(G4double randz) { fRandZ = randz; }
 
+  void SetCORSIKAFile(G4String path);
+
   static G4ThreadLocal int sIdxEvt;
   static int sNumEvt;
 
@@ -43,13 +51,20 @@ private:
   void initPtcGun();
   void initGPS();
 
-  G4int fSeed;
+  G4int  fSeed;
   G4bool fUseHepMC;
   G4bool fUseCalib;
   G4bool fUseGPS;
-  G4ParticleGun* fParticleGun;
+  G4bool fUseCORSIKA;
+
+  G4ParticleGun*           fParticleGun;
   G4GeneralParticleSource* fGPS;
+  CORSIKAReader*           fCORSIKAReader;
+  CORSIKAReader::Event     fCORSIKAEvent;
+  G4String                 fCORSIKAPath;
+
   G4GenericMessenger* fMessenger;
+
   G4ParticleDefinition* fElectron;
   G4ParticleDefinition* fPositron;
   G4ParticleDefinition* fMuon;
@@ -60,7 +75,7 @@ private:
 
   G4double fTheta;
   G4double fPhi;
-  
+
   G4double fRandX;
   G4double fRandY;
   G4double fRandZ;

@@ -36,6 +36,10 @@ public:
   static int fNofModules;
   static int fNofRow;
 
+  // World XY half-extent (mm) — set in Construct(), read by PrimaryGeneratorAction
+  static G4double fgWorldHalfXY;
+  static G4double GetWorldHalfXY() { return fgWorldHalfXY; }
+
 private:
   void DefineCommands();
   void DefineMaterials();
@@ -71,6 +75,7 @@ private:
   G4double fModuleH;
   G4double fModuleW;
   G4double fFiberUnitH;
+  G4double fModuleSpacing; // centre-to-centre gap added between modules [mm]
   G4int fRandomSeed;
 
   G4double fBottomEdge;
