@@ -6,7 +6,6 @@
 #include "DRsimSiPMHit.hh"
 
 #include "G4VUserDetectorConstruction.hh"
-#include "G4Trap.hh"
 #include "G4Box.hh"
 #include "G4Tubs.hh"
 #include "G4VSolid.hh"
@@ -16,8 +15,6 @@
 #include "G4GenericMessenger.hh"
 #include "G4FieldManager.hh"
 #include "G4ThreeVector.hh"
-
-#include "dimensionCalc.hh"
 
 #include <math.h>
 
@@ -35,23 +32,28 @@ public:
 
   static int fNofModules;
   static int fNofRow;
-  static int fNofCol;
+
+  // World XY half-extent (mm) — set in Construct(), read by PrimaryGeneratorAction
+  static G4double fgWorldHalfXY;
+  static G4double GetWorldHalfXY() { return fgWorldHalfXY; }
+
+  // Tower half-depth in z (mm) — front face at z = -fgTowerHalfZ
+  static G4double fgTowerHalfZ;
+  static G4double GetTowerHalfZ() { return fgTowerHalfZ; }
 
 private:
-  static constexpr int kMaxModules = 1024;
+  static const int kMaxModules = 100000; // supports up to 9×9 SM (59049) and beyond
 
   void DefineCommands();
   void DefineMaterials();
   G4Material* FindMaterial(G4String matName) { return fMaterials->GetMaterial(matName); }
   G4OpticalSurface* FindSurface(G4String surfName) { return fMaterials->GetOpticalSurface(surfName); }
 
-  void ModuleBuild(G4LogicalVolume* ModuleLogical_[], G4LogicalVolume* PMTGLogical_[], G4LogicalVolume* PMTfilterLogical_[], G4LogicalVolume* PMTcellLogical_[], G4LogicalVolume* PMTcathLogical_[],
-                    G4LogicalVolume* ReflectorMirrorLogical_[],
-                    std::vector<G4LogicalVolume*> fiberUnitIntersection_[], std::vector<G4LogicalVolume*> fiberCladIntersection_[], std::vector<G4LogicalVolume*> fiberCoreIntersection_[], 
-                    std::vector<DRsimInterface::DRsimModuleProperty>& towerProps_);
-
-  void FiberImplement(G4int i, G4LogicalVolume* ModuleLogical__[], 
-                   std::vector<G4LogicalVolume*> fiberUnitIntersection__[], std::vector<G4LogicalVolume*> fiberCladIntersection__[], std::vector<G4LogicalVolume*> fiberCoreIntersection__[]);
+  void ModuleBuild(G4LogicalVolume* ModuleLogical_[],
+                   G4LogicalVolume* PMTGLogical_[],
+                   G4LogicalVolume* PMTcellLogical_[],
+                   G4LogicalVolume* PMTcathLogical_[],
+                   std::vector<DRsimInterface::DRsimModuleProperty>& towerProps_);
 
   G4bool checkOverlaps;
   G4GenericMessenger* fMessenger;
@@ -68,85 +70,27 @@ private:
   G4VisAttributes* fVisAttrYellow;
   G4VisAttributes* fVisAttrMagenta;
 
-
   G4double fFrontL;
   G4double fTowerDepth;
   G4double fModuleH;
   G4double fModuleW;
-  G4double fFiberUnitH;
-  G4int fRandomSeed;
-
-  G4double fBottomEdge;
-  G4double fLeftEdge;
+  G4double fModuleSpacing;       // extra gap between modules within a supermodule [mm]
+  G4int    fNSuperRow;           // supermodule rows (0 = disabled; total rows = nSuperRow×27)
+  G4double fSuperModuleSpacing;  // extra gap between supermodules [mm]
+  G4int    fRandomSeed;
 
   G4double PMTT;
   G4double filterT;
-  G4double reflectorT;
 
-  G4bool doFiber;
-  G4bool doReflector;
   G4bool doPMT;
 
-  dimensionCalc* dimCalc;
-
-  char name[20];
-  G4String moduleName;
-  G4Box* module;
-  G4Box* reflector;
-  G4Box* pmtg;
-  G4Box* pmtcath;
-
-  G4Box* fiberUnit;
-  G4Tubs* fiberClad;
-  G4Tubs* fiberCoreS;
-  G4Tubs* fiberCoreC;
-  
-  G4VSolid* tfiberUnitIntersection;
-  G4VSolid* tfiberCladIntersection;
-  G4VSolid* tfiberCoreIntersection;
-
   G4LogicalVolume* ModuleLogical[kMaxModules];
-
   G4LogicalVolume* PMTGLogical[kMaxModules];
   G4LogicalVolume* PMTcathLogical[kMaxModules];
   G4LogicalVolume* PMTcellLogical[kMaxModules];
-  G4LogicalVolume* PMTfilterLogical[kMaxModules];
-  G4LogicalVolume* ReflectorMirrorLogical[kMaxModules];
-
-  vector<G4LogicalVolume*> fiberUnitIntersection[kMaxModules];
-  vector<G4LogicalVolume*> fiberCladIntersection[kMaxModules];
-  vector<G4LogicalVolume*> fiberCoreIntersection[kMaxModules];
 
   DRsimInterface::hitXY fTowerXY;
   std::vector<DRsimInterface::DRsimModuleProperty> fModuleProp;
-
-  G4double clad_C_rMin;
-  G4double clad_C_rMax;
-  G4double clad_C_Dz  ;
-  G4double clad_C_Sphi;
-  G4double clad_C_Dphi;
-
-  G4double core_C_rMin;
-  G4double core_C_rMax;
-  G4double core_C_Dz  ;
-  G4double core_C_Sphi;
-  G4double core_C_Dphi;
-
-  G4double clad_S_rMin;
-  G4double clad_S_rMax;
-  G4double clad_S_Dz  ;
-  G4double clad_S_Sphi;
-  G4double clad_S_Dphi;
-
-  G4double core_S_rMin;
-  G4double core_S_rMax;
-  G4double core_S_Dz  ;
-  G4double core_S_Sphi;
-  G4double core_S_Dphi;
-
-  std::vector<G4float> fFiberX;
-  std::vector<G4float> fFiberY;
-  std::vector<G4bool> fFiberWhich;
 
   G4LogicalVolume* worldLogical;
 

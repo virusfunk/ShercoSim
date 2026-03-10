@@ -2,6 +2,7 @@
 #define DRsimPrimaryGeneratorAction_h 1
 
 #include "HepMCG4Reader.hh"
+#include "CORSIKAReader.hh"
 
 #include "globals.hh"
 #include "G4VUserPrimaryGeneratorAction.hh"
@@ -47,6 +48,17 @@ private:
   G4bool fUseHepMC;
   G4bool fUseCalib;
   G4bool fUseGPS;
+
+  // CORSIKA mode members
+  G4bool          fUseCORSIKA;
+  G4String        fCORSIKAPath;
+  G4int           fCORSIKASkip;
+  G4bool          fCORSIKASkipped;
+  G4String        fCenterMode;   // "none" | "core" | "energy" | "random"
+  CORSIKAReader*  fCORSIKAReader;
+  CORSIKAReader::Event fCORSIKAEvent;
+  G4GenericMessenger* fCORSIKAMessenger;
+
   G4ParticleGun* fParticleGun;
   G4GeneralParticleSource* fGPS;
   G4GenericMessenger* fMessenger;
@@ -60,7 +72,7 @@ private:
 
   G4double fTheta;
   G4double fPhi;
-  
+
   G4double fRandX;
   G4double fRandY;
   G4double fRandZ;
