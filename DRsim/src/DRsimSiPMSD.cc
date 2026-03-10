@@ -10,8 +10,8 @@
 using namespace std;
 
 DRsimSiPMSD::DRsimSiPMSD(const G4String& name, const G4String& hitsCollectionName, DRsimInterface::DRsimModuleProperty ModuleProp)
-: G4VSensitiveDetector(name), fHitCollection(0), fHCID(-1), fWavBin(60), fTimeBin(700),
-fModuleNum(-1), fWavlenStart(900.), fWavlenEnd(300.), fTimeStart(0.), fTimeEnd(70.)
+: G4VSensitiveDetector(name), fHitCollection(0), fHCID(-1), fWavBin(60), fTimeBin(5000),
+fModuleNum(-1), fWavlenStart(900.), fWavlenEnd(300.), fTimeStart(0.), fTimeEnd(500.)
 // : G4VSensitiveDetector(name), fHitCollection(0), fHCID(-1), fWavBin(60), fTimeBin(600),
 // fModuleNum(-1), fWavlenStart(900.), fWavlenEnd(300.), fTimeStart(10.), fTimeEnd(70.)
 {
@@ -37,7 +37,10 @@ G4bool DRsimSiPMSD::ProcessHits(G4Step* step, G4TouchableHistory*) {
 
   if(step->GetTrack()->GetDefinition() != G4OpticalPhoton::OpticalPhotonDefinition()) return false;
 
-  G4int SiPMnum = step->GetPostStepPoint()->GetTouchable()->GetVolume(1)->GetCopyNo();
+  G4int SiPMnum = 0;
+  const G4TouchableHandle& th = step->GetPostStepPoint()->GetTouchableHandle();
+  if (th->GetHistoryDepth() >= 1)
+    SiPMnum = th->GetVolume(1)->GetCopyNo();
   G4int nofHits = fHitCollection->entries();
   G4double hitTime = step->GetPostStepPoint()->GetGlobalTime();
   G4double energy = step->GetTrack()->GetTotalEnergy();

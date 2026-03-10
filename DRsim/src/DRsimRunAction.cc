@@ -29,10 +29,7 @@ DRsimRunAction::DRsimRunAction(G4int seed, G4String filename, G4bool useHepMC)
 DRsimRunAction::~DRsimRunAction() {
   if (IsMaster()) {
     G4AutoLock lock(&DRsimRunActionMutex);
-
     if (sRootIO) {
-      sRootIO->write();
-      sRootIO->close();
       delete sRootIO;
       sRootIO = 0;
     }
@@ -44,5 +41,11 @@ void DRsimRunAction::BeginOfRunAction(const G4Run*) {
 }
 
 void DRsimRunAction::EndOfRunAction(const G4Run*) {
-
+  if (IsMaster()) {
+    G4AutoLock lock(&DRsimRunActionMutex);
+    if (sRootIO) {
+      sRootIO->write();
+      sRootIO->close();
+    }
+  }
 }

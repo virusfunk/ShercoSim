@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
   CLHEP::HepRandom::setTheSeed(seed);
 
   // Construct the default run manager
-  auto* runManager = G4RunManagerFactory::CreateRunManager(G4RunManagerType::Default);
+  auto* runManager = G4RunManagerFactory::CreateRunManager(G4RunManagerType::Serial);
   
   // Mandatory user initialization classes
   runManager->SetUserInitialization(new DRsimDetectorConstruction());

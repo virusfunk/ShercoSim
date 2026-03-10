@@ -1,17 +1,12 @@
 #include "DRsimDetectorConstruction.hh"
-#include "DRsimCellParameterisation.hh"
-#include "DRsimFilterParameterisation.hh"
-#include "DRsimMirrorParameterisation.hh"
 #include "DRsimSiPMSD.hh"
 
 #include "G4VPhysicalVolume.hh"
 #include "G4PVPlacement.hh"
-#include "G4PVParameterised.hh"
+#include "G4Tubs.hh"
 
-#include "G4IntersectionSolid.hh"
 #include "G4SDManager.hh"
 #include "G4LogicalSkinSurface.hh"
-#include "G4LogicalBorderSurface.hh"
 #include "G4LogicalVolumeStore.hh"
 #include "G4SolidStore.hh"
 #include "G4PhysicalVolumeStore.hh"
@@ -25,73 +20,46 @@
 using namespace std;
 
 G4ThreadLocal DRsimMagneticField* DRsimDetectorConstruction::fMagneticField = 0;
-G4ThreadLocal G4FieldManager* DRsimDetectorConstruction::fFieldMgr = 0;
+G4ThreadLocal G4FieldManager*     DRsimDetectorConstruction::fFieldMgr      = 0;
 
-int DRsimDetectorConstruction::fNofRow = 27;
-int DRsimDetectorConstruction::fNofCol = 27;
-int DRsimDetectorConstruction::fNofModules = fNofRow * fNofCol;
+int    DRsimDetectorConstruction::fNofRow      = 1;
+int    DRsimDetectorConstruction::fNofModules  = 1;   // updated in Construct()
+G4double DRsimDetectorConstruction::fgWorldHalfXY = 200.;  // mm, updated in Construct()
+G4double DRsimDetectorConstruction::fgTowerHalfZ  = 500.;  // mm, updated in Construct()
 
+// ── ctor ──────────────────────────────────────────────────────────────────
 DRsimDetectorConstruction::DRsimDetectorConstruction()
-: G4VUserDetectorConstruction(), fMessenger(0), fMaterials(NULL) {
+: G4VUserDetectorConstruction(), fMessenger(0), fMaterials(NULL),
+  fModuleSpacing(0.), fNSuperRow(0), fSuperModuleSpacing(0.), fTowerDepth(1000.), fGeometry("slab"),
+  fAllLS(false), fAllWater(false), fFlipCheckerboard(false)
+{
   DefineCommands();
   DefineMaterials();
 
-  clad_C_rMin = 0.49*mm;
-  clad_C_rMax = 0.50*mm;
-  clad_C_Dz   = 2.5*m;
-  clad_C_Sphi = 0.;
-  clad_C_Dphi = 2.*M_PI;
-
-  core_C_rMin = 0.*mm;
-  core_C_rMax = 0.49*mm;
-  core_C_Dz   = 2.5*m;
-  core_C_Sphi = 0.;
-  core_C_Dphi = 2.*M_PI;
-
-  clad_S_rMin = 0.485*mm;
-  clad_S_rMax = 0.50*mm;
-  clad_S_Dz   = 2.5*m;
-  clad_S_Sphi = 0.;
-  clad_S_Dphi = 2.*M_PI;
-
-  core_S_rMin = 0.*mm;
-  core_S_rMax = 0.485*mm;
-  core_S_Dz   = 2.5*m;
-  core_S_Sphi = 0.;
-  core_S_Dphi = 2.*M_PI;
-
-  PMTT = 0.3*mm;
+  PMTT    = 0.3*mm;
   filterT = 0.01*mm;
-  reflectorT = 0.03*mm;
 
-  fVisAttrOrange = new G4VisAttributes(G4Colour(1.0,0.5,0.,1.0));
+  fVisAttrOrange  = new G4VisAttributes(G4Colour(1.0,0.5,0.,1.0));
   fVisAttrOrange->SetVisibility(true);
-  fVisAttrBlue = new G4VisAttributes(G4Colour(0.,0.,1.0,1.0));
+  fVisAttrBlue    = new G4VisAttributes(G4Colour(0.2,0.4,1.0,0.8));
   fVisAttrBlue->SetVisibility(true);
-  fVisAttrGray = new G4VisAttributes(G4Colour(0.3,0.3,0.3,0.3));
+  fVisAttrGray    = new G4VisAttributes(G4Colour(0.3,0.3,0.3,0.3));
   fVisAttrGray->SetVisibility(true);
-  fVisAttrGreen = new G4VisAttributes(G4Colour(0.3,0.7,0.3));
+  fVisAttrGreen   = new G4VisAttributes(G4Colour(0.2,0.9,0.3,0.8));
   fVisAttrGreen->SetVisibility(true);
-  fVisAttrCyan = new G4VisAttributes(G4Colour(0.0, 1.0, 1.0));
+  fVisAttrCyan    = new G4VisAttributes(G4Colour(0.0,1.0,1.0));
   fVisAttrCyan->SetVisibility(true);
-  fVisAttrYellow = new G4VisAttributes(G4Colour(1.0, 1.0, 0.0));
+  fVisAttrYellow  = new G4VisAttributes(G4Colour(1.0,1.0,0.0));
   fVisAttrYellow->SetVisibility(true);
-  fVisAttrMagenta = new G4VisAttributes(G4Colour(1.0, 0.0, 1.0));
+  fVisAttrMagenta = new G4VisAttributes(G4Colour(1.0,0.0,1.0));
   fVisAttrMagenta->SetVisibility(true);
 }
-
-
 
 DRsimDetectorConstruction::~DRsimDetectorConstruction() {
   delete fMessenger;
   delete fMaterials;
-
-  delete fVisAttrOrange;
-  delete fVisAttrBlue;
-  delete fVisAttrGray;
-  delete fVisAttrGreen;
-  delete fVisAttrCyan;
-  delete fVisAttrYellow;
+  delete fVisAttrOrange;  delete fVisAttrBlue;  delete fVisAttrGray;
+  delete fVisAttrGreen;   delete fVisAttrCyan;  delete fVisAttrYellow;
   delete fVisAttrMagenta;
 }
 
@@ -99,6 +67,7 @@ void DRsimDetectorConstruction::DefineMaterials() {
   fMaterials = DRsimMaterials::GetInstance();
 }
 
+// ── Construct ─────────────────────────────────────────────────────────────
 G4VPhysicalVolume* DRsimDetectorConstruction::Construct() {
   G4GeometryManager::GetInstance()->OpenGeometry();
   G4PhysicalVolumeStore::GetInstance()->Clean();
@@ -107,156 +76,371 @@ G4VPhysicalVolume* DRsimDetectorConstruction::Construct() {
 
   checkOverlaps = false;
 
-  G4VSolid* worldSolid             = new G4Box("worldBox",10.*m,10.*m,10.*m);
-  worldLogical                     = new G4LogicalVolume(worldSolid,FindMaterial("G4_Galactic"),"worldLogical");
-  G4VPhysicalVolume* worldPhysical = new G4PVPlacement(0,G4ThreeVector(),worldLogical,"worldPhysical",0,false,0,checkOverlaps);
+  // Supermodule mode: nSuperRow > 0 → total rows = nSuperRow × 27
+  if (fNSuperRow > 0)
+    fNofRow = fNSuperRow * 27;
 
-  float moduleUnitDimension = 37.5;
+  // Update static module count from current fNofRow
+  fNofModules = fNofRow * fNofRow;
 
-  fFrontL     = 0.;
-  fTowerDepth = 100.; 
-  fModuleH    = moduleUnitDimension;
-  fModuleW    = moduleUnitDimension;
-  fFiberUnitH = 1.;
+  // Cosmic_module: 37.5 × 37.5 mm outer size
+  const G4double moduleUnitDimension = 37.5;   // mm
+  const G4double modulePitch = (moduleUnitDimension + fModuleSpacing) * mm;
+  G4double halfExtent;
+  if (fNSuperRow > 0) {
+    // Two-level grid: account for supermodule spacing
+    G4double smSize  = 27 * modulePitch;
+    G4double smPitch = smSize + fSuperModuleSpacing * mm;
+    halfExtent = (fNSuperRow - 1) / 2.0 * smPitch + smSize / 2. + 100.*mm;
+  } else {
+    halfExtent = (fNofRow > 1)
+        ? ((fNofRow - 1) / 2.0 * modulePitch + moduleUnitDimension / 2. * mm + 100.*mm)
+        : 200.*mm;
+  }
 
+  fgWorldHalfXY = halfExtent / mm;   // store in mm for PrimaryGeneratorAction
+  fgTowerHalfZ  = fTowerDepth / 2.;  // store in mm
 
-  // fRandomSeed = 1;
+  G4VSolid* worldSolid = new G4Box("worldBox",
+                                    halfExtent, halfExtent, 10.*m);
+  worldLogical = new G4LogicalVolume(worldSolid,
+                                      FindMaterial("G4_Galactic"), "worldLogical");
+  G4VPhysicalVolume* worldPhysical =
+      new G4PVPlacement(0, G4ThreeVector(), worldLogical,
+                        "worldPhysical", 0, false, 0, checkOverlaps);
 
-  doFiber     = true;
-  doReflector = false;
-  doPMT       = true;
+  fFrontL  = 0.;
+  fModuleH = moduleUnitDimension;
+  fModuleW = moduleUnitDimension;
+  doPMT    = true;
 
-  fiberUnit   = new G4Box("fiber_SQ", (fFiberUnitH/2) *mm, (1./2) *mm, (fTowerDepth/2) *mm);
-  fiberClad   = new G4Tubs("fiber",  0, clad_C_rMax, fTowerDepth/2., 0 *deg, 360. *deg);   // S is the same
-  fiberCoreC  = new G4Tubs("fiberC", 0, core_C_rMax, fTowerDepth/2., 0 *deg, 360. *deg);
-  fiberCoreS  = new G4Tubs("fiberS", 0, core_S_rMax, fTowerDepth/2., 0 *deg, 360. *deg);
+  // fTowerXY = {1, 1}: one SiPM per module; Water/LAB alternates by checkerboard
+  fTowerXY = std::make_pair(1, 1);
 
-  dimCalc = new dimensionCalc();
-  dimCalc->SetFrontL(fFrontL);
-  dimCalc->SetTower_height(fTowerDepth);
-  dimCalc->SetPMTT(PMTT+filterT);
-  dimCalc->SetReflectorT(reflectorT);
-  dimCalc->SetNofModules(fNofModules);
-  dimCalc->SetNofRow(fNofRow);
-  dimCalc->SetNofCol(fNofCol);
-  dimCalc->SetModuleHeight(fModuleH);
-  dimCalc->SetModuleWidth(fModuleW);
+  if (fGeometry == "fiber")
+    FiberModuleBuild(ModuleLogical, PMTGLogical, PMTcellLogical, PMTcathLogical, fModuleProp);
+  else
+    ModuleBuild(ModuleLogical, PMTGLogical, PMTcellLogical, PMTcathLogical, fModuleProp);
 
-  ModuleBuild(ModuleLogical,PMTGLogical,PMTfilterLogical,PMTcellLogical,PMTcathLogical,ReflectorMirrorLogical,fiberUnitIntersection,fiberCladIntersection,fiberCoreIntersection,fModuleProp);
-
-  delete dimCalc;
   return worldPhysical;
 }
 
+// ── ConstructSDandField ───────────────────────────────────────────────────
 void DRsimDetectorConstruction::ConstructSDandField() {
   G4SDManager* SDman = G4SDManager::GetSDMpointer();
-  G4String SiPMName = "SiPMSD";
 
-  // ! Not a memory leak - SDs are deleted by G4SDManager. Deleting them manually will cause double delete!
+  if (doPMT) {
+    for (int i = 0; i < fNofModules; i++) {
+      DRsimSiPMSD* SiPMSDmodule =
+          new DRsimSiPMSD("Module_" + std::to_string(i),
+                           "ModuleHC_" + std::to_string(i),
+                           fModuleProp.at(i));
+      SDman->AddNewDetector(SiPMSDmodule);
+      // SD on PMTcellLogical: photon entering glass cell is detected.
+      PMTcellLogical[i]->SetSensitiveDetector(SiPMSDmodule);
+    }
+  }
+}
+
+// ── ModuleBuild ───────────────────────────────────────────────────────────
+// Cosmic_module geometry (37.5 × 37.5 × fTowerDepth mm) — from Cosmic_module.pdf:
+//   Fe absorber:    6.00 mm walls (outermost)
+//   Al liner:       0.25 mm walls inside Fe
+//   Active volume:  25 × 25 mm (Water or LS), centered
+//   Checkerboard:   (i_row+j_col)%2==0 → Water (Cherenkov), else → LS (Scintillation)
+//   1 SiPM (25×25 mm glass + Si cathode) per module at back face
+//
+// Supermodule layout (when fNSuperRow > 0):
+//   One supermodule = 27 × 27 modules
+//   Array = fNSuperRow × fNSuperRow supermodules
+//   Total modules = (fNSuperRow×27)²
+//
+void DRsimDetectorConstruction::ModuleBuild(
+    G4LogicalVolume* ModuleLogical_[],
+    G4LogicalVolume* PMTGLogical_[],
+    G4LogicalVolume* PMTcellLogical_[],
+    G4LogicalVolume* PMTcathLogical_[],
+    std::vector<DRsimInterface::DRsimModuleProperty>& ModuleProp_)
+{
+  // Geometry constants (Cosmic_module.pdf)
+  // 37.5 mm total = 25 mm active + 2×(0.25 mm Al + 6 mm Fe) per side
+  const G4double modHalf   = (fTowerDepth / 2.) * mm;
+  const G4double alThick   = 0.25 * mm;
+  const G4double feThick   = 6.0  * mm;
+  const G4double feHalfXY  = (fModuleW / 2.) * mm;             // 18.75 mm — Fe outermost
+  const G4double alHalfXY  = feHalfXY - feThick;               // 12.75 mm — Al liner inside Fe
+  const G4double actHalf   = alHalfXY - alThick;               // 12.50 mm → 25×25 mm active
+  const G4double sipmStackH = PMTT + filterT;
+  const G4double slabHalf  = modHalf - sipmStackH / 2.;
+  const G4double slabZ     = -sipmStackH / 2.;
+  const G4double cellZ     = modHalf - sipmStackH / 2.;
+  const G4double cathDz    = (PMTT - filterT) / 2.;
+
+  const G4double modulePitch = (fModuleW + fModuleSpacing) * mm;
+  // Supermodule layout constants (only used when fNSuperRow > 0)
+  const G4int    modsPerSM = 27;
+  const G4double smSize    = modsPerSM * modulePitch;
+  const G4double smPitch   = smSize + fSuperModuleSpacing * mm;
+
   for (int i = 0; i < fNofModules; i++) {
-    DRsimSiPMSD* SiPMSDmodule = new DRsimSiPMSD("Module_"+std::to_string(i), "ModuleHC_"+std::to_string(i), fModuleProp.at(i));
-    SDman->AddNewDetector(SiPMSDmodule);
-    PMTcathLogical[i]->SetSensitiveDetector(SiPMSDmodule);
-  }
-}
+    G4String mName = setModuleName(i);
 
-void DRsimDetectorConstruction::ModuleBuild(G4LogicalVolume* ModuleLogical_[], 
-                                            G4LogicalVolume* PMTGLogical_[], 
-                                            G4LogicalVolume* PMTfilterLogical_[], 
-                                            G4LogicalVolume* PMTcellLogical_[], 
-                                            G4LogicalVolume* PMTcathLogical_[], 
-                                            G4LogicalVolume* ReflectorMirrorLogical_[],
-                                            std::vector<G4LogicalVolume*> fiberUnitIntersection_[], 
-                                            std::vector<G4LogicalVolume*> fiberCladIntersection_[], 
-                                            std::vector<G4LogicalVolume*> fiberCoreIntersection_[], 
-                                            std::vector<DRsimInterface::DRsimModuleProperty>& ModuleProp_) {
-  
+    // Global grid position
+    int i_row = i / fNofRow;
+    int j_col = i % fNofRow;
 
-  std::vector<G4PVPlacement*> tModulePhyVec;
-
-  for ( int nModule = 0; nModule < fNofModules; nModule++ ) {
-    bool isCeren = DRsimInterface::IsCerenkov(nModule);
-    
-    DRsimInterface::DRsimModuleProperty ModulePropSingle;
-    ModulePropSingle.towerXY   = std::make_pair(1, 1);
-    ModulePropSingle.ModuleNum = nModule;
-    ModuleProp_.push_back(ModulePropSingle);
-
-    if ( isCeren == true ) {
-      
-      auto tModule = new G4Box("Module", (1008. / 2.) *mm, (37.5 / 2.) *mm, (37.5 / 2.) *mm);
-      auto tModuleLog = new G4LogicalVolume(tModule, FindMaterial("Iron"), "tLogModule_" + std::to_string(nModule));
-      
-      auto tAlHousing = new G4Box("tAlHousing", (997. / 2.) *mm, (25.5 / 2.) *mm, (25.5 / 2.) *mm);
-      auto tAlHousingLog = new G4LogicalVolume(tAlHousing, FindMaterial("Aluminum"), "tAlHousingLog");
-      auto tAlHousingPhy = new G4PVPlacement(new G4RotationMatrix(), G4ThreeVector(0.5,0.,0.), tAlHousingLog, "tAlHousingPhy", tModuleLog, false, 0, false);
-
-      auto tActiveMat = new G4Box("tActiveMat", (996.75 / 2.) *mm, (25. / 2.) *mm, (25. / 2.) *mm);
-      auto tActiveMatLog_C = new G4LogicalVolume(tActiveMat, FindMaterial("Water"), "tActiveMatLog_C");
-      auto tActiveMatPhy = new G4PVPlacement(new G4RotationMatrix(), G4ThreeVector(0.125,0.,0.), tActiveMatLog_C, "tActiveMatPhy", tAlHousingLog, false, 0, false);
-      
-      new G4LogicalSkinSurface("AlSurf", tAlHousingLog, FindSurface("AlSurf"));
-      
-      auto tPMTGlass = new G4Box("tPMTGlass", (1. / 2.) *mm, (25.5 / 2.) *mm, (25.5 / 2.) *mm);
-      auto tPMTGlassLog = new G4LogicalVolume(tPMTGlass, FindMaterial("Glass"), "tPMTGlassLog");
-      auto tPMTGlassPhy = new G4PVPlacement(new G4RotationMatrix(), G4ThreeVector(499.5,0.,0.), tPMTGlassLog, "tPMTGlassPhy", tModuleLog, false, 0, false);
-    
-      auto tOpCookie = new G4Box("tOpCookie", (3. / 2.) *mm, (25.5 / 2.) *mm, (25.5 / 2.) *mm);
-      auto tOpCookieLog = new G4LogicalVolume(tOpCookie, FindMaterial("Gelatin"), "tOpCookieLog");
-      auto tOpCookiePhy = new G4PVPlacement(new G4RotationMatrix(), G4ThreeVector(501.5,0.,0.), tOpCookieLog, "tOpCookiePhy", tModuleLog, false, 0, false);
-    
-      auto tPMT = new G4Box("tPMT", (1. / 2.) *mm, (25.5 / 2.) *mm, (25.5 / 2.) *mm);
-      PMTcathLogical_[nModule] = new G4LogicalVolume(tPMT, FindMaterial("Silicon"), "tPMTLog");
-      auto tPMTPhy = new G4PVPlacement(new G4RotationMatrix(), G4ThreeVector(503.5,0.,0.), PMTcathLogical_[nModule], "tPMTPhy", tModuleLog, false, 0, false);
-      
-      new G4LogicalSkinSurface("PMTsurf", PMTcathLogical_[nModule], FindSurface("PMTsurf"));
-      
-      tModulePhyVec.push_back(new G4PVPlacement(new G4RotationMatrix(G4ThreeVector(0.,1.,0.), 90. *deg), dimCalc->GetOrigin(nModule), tModuleLog, "Module_" + std::to_string(nModule), worldLogical, true, nModule, false));
-
-      tActiveMatLog_C->SetVisAttributes(fVisAttrBlue);
-      tPMTGlassLog->SetVisAttributes(fVisAttrCyan);
-      tAlHousingLog->SetVisAttributes(fVisAttrGray);
-      tOpCookieLog->SetVisAttributes(fVisAttrYellow);
-      PMTcathLogical_[nModule]->SetVisAttributes(fVisAttrGreen); 
+    // Module centre coordinates
+    G4double cx, cy;
+    if (fNSuperRow > 0) {
+      // Two-level: supermodule position + local position within supermodule
+      int sm_row  = i_row / modsPerSM;
+      int sm_col  = j_col / modsPerSM;
+      int loc_row = i_row % modsPerSM;
+      int loc_col = j_col % modsPerSM;
+      G4double sm_cx = (sm_row - (fNSuperRow - 1) / 2.0) * smPitch;
+      G4double sm_cy = (sm_col - (fNSuperRow - 1) / 2.0) * smPitch;
+      cx = sm_cx + (loc_row - (modsPerSM - 1) / 2.0) * modulePitch;
+      cy = sm_cy + (loc_col - (modsPerSM - 1) / 2.0) * modulePitch;
     } else {
-      
-      auto tModule = new G4Box("Module", (1008. / 2.) *mm, (37.5 / 2.) *mm, (37.5 / 2.) *mm);
-      auto tModuleLog = new G4LogicalVolume(tModule, FindMaterial("Iron"), "tLogModule_" + std::to_string(nModule));
-      
-      auto tAlHousing = new G4Box("tAlHousing", (997. / 2.) *mm, (25.5 / 2.) *mm, (25.5 / 2.) *mm);
-      auto tAlHousingLog = new G4LogicalVolume(tAlHousing, FindMaterial("Aluminum"), "tAlHousingLog");
-      auto tAlHousingPhy = new G4PVPlacement(new G4RotationMatrix(), G4ThreeVector(0.5,0.,0.), tAlHousingLog, "tAlHousingPhy", tModuleLog, false, 0, false);
+      cx = (i_row - (fNofRow - 1) / 2.0) * modulePitch;
+      cy = (j_col - (fNofRow - 1) / 2.0) * modulePitch;
+    }
 
-      auto tActiveMat = new G4Box("tActiveMat", (996.75 / 2.) *mm, (25. / 2.) *mm, (25. / 2.) *mm);
-      auto tActiveMatLog_S = new G4LogicalVolume(tActiveMat, FindMaterial("LS"), "tActiveMatLog_S");
-      auto tActiveMatPhy = new G4PVPlacement(new G4RotationMatrix(), G4ThreeVector(0.125,0.,0.), tActiveMatLog_S, "tActiveMatPhy", tAlHousingLog, false, 0, false);
-      
-      new G4LogicalSkinSurface("AlSurf", tAlHousingLog, FindSurface("AlSurf"));
-      
-      auto tPMTGlass = new G4Box("tPMTGlass", (1. / 2.) *mm, (25.5 / 2.) *mm, (25.5 / 2.) *mm);
-      auto tPMTGlassLog = new G4LogicalVolume(tPMTGlass, FindMaterial("Glass"), "tPMTGlassLog");
-      auto tPMTGlassPhy = new G4PVPlacement(new G4RotationMatrix(), G4ThreeVector(499.5,0.,0.), tPMTGlassLog, "tPMTGlassPhy", tModuleLog, false, 0, false);
-    
-      auto tOpCookie = new G4Box("tOpCookie", (3. / 2.) *mm, (25.5 / 2.) *mm, (25.5 / 2.) *mm);
-      auto tOpCookieLog = new G4LogicalVolume(tOpCookie, FindMaterial("Gelatin"), "tOpCookieLog");
-      auto tOpCookiePhy = new G4PVPlacement(new G4RotationMatrix(), G4ThreeVector(501.5,0.,0.), tOpCookieLog, "tOpCookiePhy", tModuleLog, false, 0, false);
-    
-      auto tPMT = new G4Box("tPMT", (1. / 2.) *mm, (25.5 / 2.) *mm, (25.5 / 2.) *mm);
-      PMTcathLogical_[nModule] = new G4LogicalVolume(tPMT, FindMaterial("Silicon"), "tPMTLog");
-      auto tPMTPhy = new G4PVPlacement(new G4RotationMatrix(), G4ThreeVector(503.5,0.,0.), PMTcathLogical_[nModule], "tPMTPhy", tModuleLog, false, 0, false);
+    // Checkerboard: even → Water (Cherenkov), odd → LS (Scintillation)
+    // Override with /detector/allLS, /detector/allWater, or /detector/flipCheckerboard
+    bool isWater;
+    if (fAllLS)              isWater = false;
+    else if (fAllWater)      isWater = true;
+    else if (fFlipCheckerboard) isWater = ((i_row + j_col) % 2 != 0);  // inverted
+    else                     isWater = ((i_row + j_col) % 2 == 0);
+    G4Material* activeMat = isWater ? FindMaterial("Water") : FindMaterial("LS");
+    G4String    activeTag = isWater ? "_Water" : "_LS";
 
-      new G4LogicalSkinSurface("PMTsurf", PMTcathLogical_[nModule], FindSurface("PMTsurf"));
-      
-      tModulePhyVec.push_back(new G4PVPlacement(new G4RotationMatrix(G4ThreeVector(0.,1.,0.), 90. *deg), dimCalc->GetOrigin(nModule), tModuleLog, "Module_" + std::to_string(nModule), worldLogical, true, nModule, false));    
-      
-      tActiveMatLog_S->SetVisAttributes(fVisAttrOrange);
-      tPMTGlassLog->SetVisAttributes(fVisAttrCyan);
-      tAlHousingLog->SetVisAttributes(fVisAttrGray);
-      tOpCookieLog->SetVisAttributes(fVisAttrYellow);
-      PMTcathLogical_[nModule]->SetVisAttributes(fVisAttrGreen); 
-    } 
+    // ── Fe absorber (outermost, 6 mm walls) ──────────────────────────────
+    auto* feSolid = new G4Box("FeModule", feHalfXY, feHalfXY, modHalf);
+    ModuleLogical_[i] = new G4LogicalVolume(feSolid, FindMaterial("Iron"), mName);
+    new G4PVPlacement(nullptr, G4ThreeVector(cx, cy, 0.), ModuleLogical_[i], mName,
+                      worldLogical, false, 0, checkOverlaps);
+    ModuleLogical_[i]->SetVisAttributes(fVisAttrOrange);
+
+    // ── Al liner (0.25 mm walls inside Fe) ───────────────────────────────
+    auto* alSolid = new G4Box("AlModule", alHalfXY, alHalfXY, modHalf);
+    auto* alLog   = new G4LogicalVolume(alSolid, FindMaterial("Aluminum"), mName + "_Al");
+    new G4PVPlacement(nullptr, G4ThreeVector(), alLog, mName + "_AlPV",
+                      ModuleLogical_[i], false, 0, checkOverlaps);
+    alLog->SetVisAttributes(fVisAttrGray);
+
+    // ── Active volume (25×25 mm, Water or LS) inside Al ──────────────────
+    auto* actSolid = new G4Box("ActiveVol", actHalf, actHalf, slabHalf);
+    auto* actLog   = new G4LogicalVolume(actSolid, activeMat, mName + activeTag);
+    new G4PVPlacement(nullptr, G4ThreeVector(0., 0., slabZ),
+                      actLog, mName + activeTag + "PV", alLog, false, 0, checkOverlaps);
+    actLog->SetVisAttributes(isWater ? fVisAttrBlue : fVisAttrGreen);
+
+    // ── SiPM: 25×25 mm glass cell + Si photocathode inside Al ────────────
+    auto* cellSolid = new G4Box("PMTcellSolid", actHalf, actHalf, sipmStackH / 2.);
+    PMTcellLogical_[i] = new G4LogicalVolume(cellSolid, FindMaterial("Glass"),
+                                              "PMTcellLogical_");
+    new G4PVPlacement(nullptr, G4ThreeVector(0., 0., cellZ),
+                      PMTcellLogical_[i], "PMTcellPhysical",
+                      alLog, false, 0, checkOverlaps);
+
+    auto* cathSolid = new G4Box("PMTcathSolid", actHalf, actHalf, filterT / 2.);
+    PMTcathLogical_[i] = new G4LogicalVolume(cathSolid, FindMaterial("Silicon"),
+                                              "PMTcathLogical_");
+    new G4PVPlacement(nullptr, G4ThreeVector(0., 0., cathDz),
+                      PMTcathLogical_[i], "PMTcathPhysical",
+                      PMTcellLogical_[i], false, 0, checkOverlaps);
+    new G4LogicalSkinSurface("Photocath_surf", PMTcathLogical_[i], FindSurface("SiPMsurf"));
+    PMTcathLogical_[i]->SetVisAttributes(fVisAttrGreen);
+
+    // ── Module property record ────────────────────────────────────────────
+    DRsimInterface::DRsimModuleProperty prop;
+    prop.towerXY   = fTowerXY;   // {1, 1}
+    prop.ModuleNum = i;
+    ModuleProp_.push_back(prop);
+
+    PMTGLogical_[i] = nullptr;
   }
 }
 
-void DRsimDetectorConstruction::DefineCommands() {}
+// ── DefineCommands ────────────────────────────────────────────────────────
+void DRsimDetectorConstruction::DefineCommands() {
+  fMessenger = new G4GenericMessenger(this, "/detector/",
+                                      "Detector geometry control");
 
+  G4GenericMessenger::Command& rowCmd =
+      fMessenger->DeclareProperty("nRow", fNofRow,
+                                  "number of module rows (array = nRow x nRow)");
+  rowCmd.SetParameterName("nRow", true);
+  rowCmd.SetDefaultValue("1");
+  rowCmd.SetRange("nRow >= 1 && nRow <= 200");
+
+  G4GenericMessenger::Command& spacingCmd =
+      fMessenger->DeclarePropertyWithUnit("moduleSpacing", "mm", fModuleSpacing,
+                                          "extra gap between modules [mm]");
+  spacingCmd.SetParameterName("moduleSpacing", true);
+  spacingCmd.SetDefaultValue("0.");
+
+  G4GenericMessenger::Command& smRowCmd =
+      fMessenger->DeclareProperty("nSuperRow", fNSuperRow,
+                                  "supermodule rows (0=disabled; total rows = nSuperRow×27)");
+  smRowCmd.SetParameterName("nSuperRow", true);
+  smRowCmd.SetDefaultValue("0");
+  smRowCmd.SetRange("nSuperRow >= 0 && nSuperRow <= 10");
+
+  G4GenericMessenger::Command& smSpacingCmd =
+      fMessenger->DeclarePropertyWithUnit("superModuleSpacing", "mm", fSuperModuleSpacing,
+                                          "extra gap between supermodules [mm]");
+  smSpacingCmd.SetParameterName("superModuleSpacing", true);
+  smSpacingCmd.SetDefaultValue("0.");
+
+  G4GenericMessenger::Command& depthCmd =
+      fMessenger->DeclarePropertyWithUnit("towerDepth", "mm", fTowerDepth,
+                                          "module depth [mm]");
+  depthCmd.SetParameterName("towerDepth", true);
+  depthCmd.SetDefaultValue("1000.");
+
+  G4GenericMessenger::Command& geomCmd =
+      fMessenger->DeclareProperty("geometry", fGeometry,
+                                  "detector geometry type: slab or fiber");
+  geomCmd.SetParameterName("geometry", true);
+  geomCmd.SetDefaultValue("slab");
+
+  G4GenericMessenger::Command& allLSCmd =
+      fMessenger->DeclareProperty("allLS", fAllLS,
+                                  "if true, all modules use LAB (scintillator-only calibration)");
+  allLSCmd.SetParameterName("allLS", true);
+  allLSCmd.SetDefaultValue("false");
+
+  G4GenericMessenger::Command& allWaterCmd =
+      fMessenger->DeclareProperty("allWater", fAllWater,
+                                  "if true, all modules use Water (Cherenkov-only calibration)");
+  allWaterCmd.SetParameterName("allWater", true);
+  allWaterCmd.SetDefaultValue("false");
+
+  G4GenericMessenger::Command& flipCmd =
+      fMessenger->DeclareProperty("flipCheckerboard", fFlipCheckerboard,
+                                  "if true, invert C/S checkerboard so center module is S-type");
+  flipCmd.SetParameterName("flipCheckerboard", true);
+  flipCmd.SetDefaultValue("false");
+}
+
+// ── FiberModuleBuild ───────────────────────────────────────────────────────
+// DREAM/RD52-style fiber calorimeter (37.5 × 37.5 × fTowerDepth mm):
+//   Pb absorber matrix
+//   Cherenkov fibers: PMMA, 1 mm dia, (i+j)%2==0  → SiPMnum = 0 (copy 0)
+//   Scintillating fibers: Polystyrene, 1 mm dia, (i+j)%2==1 → SiPMnum = 1 (copy 1)
+//   18×18 fiber grid on 2 mm pitch; all photons summed per type via copy number.
+//
+void DRsimDetectorConstruction::FiberModuleBuild(
+    G4LogicalVolume* ModuleLogical_[],
+    G4LogicalVolume* PMTGLogical_[],
+    G4LogicalVolume* PMTcellLogical_[],
+    G4LogicalVolume* PMTcathLogical_[],
+    std::vector<DRsimInterface::DRsimModuleProperty>& ModuleProp_)
+{
+  const G4double modHalf    = (fTowerDepth / 2.) * mm;
+  const G4double sipmStackH = PMTT + filterT;
+  const G4double slabHalf   = modHalf - sipmStackH / 2.;
+  const G4double slabZ      = -sipmStackH / 2.;
+  const G4double cellZ      = modHalf - sipmStackH / 2.;
+  const G4double cathDz     = (PMTT - filterT) / 2.;
+
+  // Fiber geometry: 1 mm total diameter, 0.94 mm core, 0.03 mm cladding per side.
+  // C fiber: PMMA core + FluorinatedPolymer cladding (n_core=1.49 > n_clad=1.42 → TIR)
+  // S fiber: Polystyrene core + PMMA cladding  (n_core=1.59 > n_clad=1.49 → TIR)
+  // Photons beyond critical angle are guided to PMTcell by total internal reflection.
+  const G4double fiberR  = 0.50 * mm;   // outer (cladding) radius
+  const G4double coreR   = 0.47 * mm;   // core radius (0.94 mm core dia)
+  const G4double pitch   = 2.0  * mm;
+  const int      nF      = 18;          // fibers per side (36 mm < 37.5 mm tower)
+  const G4double offset  = -(nF - 1) / 2.0 * pitch;  // = -17 mm
+
+  G4double pitchModule = (fModuleW + fModuleSpacing) * mm;
+
+  // Solids shared across all modules
+  auto* claddingSolid = new G4Tubs("CladdingTube", 0.,     fiberR, slabHalf,      0., 360.*deg);
+  auto* coreSolid     = new G4Tubs("CoreTube",     0.,     coreR,  slabHalf,      0., 360.*deg);
+  auto* pmtTube       = new G4Tubs("PMTcellTube",  0.,     fiberR, sipmStackH/2., 0., 360.*deg);
+  auto* cathTube      = new G4Tubs("PMTcathTube",  0.,     fiberR, filterT/2.,    0., 360.*deg);
+
+  for (int i = 0; i < fNofModules; i++) {
+    G4String mName = setModuleName(i);
+    G4double cx = (i / fNofRow - (fNofRow - 1) / 2.0) * pitchModule;
+    G4double cy = (i % fNofRow - (fNofRow - 1) / 2.0) * pitchModule;
+    G4ThreeVector modOrigin(cx, cy, 0.);
+
+    // Pb absorber as tower body
+    auto* pbSolid = new G4Box("PbModule",
+        (fModuleW / 2.) * mm, (fModuleH / 2.) * mm, modHalf);
+    ModuleLogical_[i] = new G4LogicalVolume(pbSolid, FindMaterial("Lead"), mName);
+    new G4PVPlacement(nullptr, modOrigin, ModuleLogical_[i], mName,
+                      worldLogical, false, 0, checkOverlaps);
+    ModuleLogical_[i]->SetVisAttributes(fVisAttrGray);
+
+    // Cladding logical volumes (placed in Pb, contain the active core)
+    auto* claddingLogC = new G4LogicalVolume(claddingSolid,
+                             FindMaterial("FluorinatedPolymer"), mName + "_CladC");
+    auto* claddingLogS = new G4LogicalVolume(claddingSolid,
+                             FindMaterial("PMMA"), mName + "_CladS");
+    claddingLogC->SetVisAttributes(fVisAttrCyan);
+    claddingLogS->SetVisAttributes(fVisAttrGreen);
+
+    // Core logical volumes (placed inside cladding → TIR at core-cladding boundary)
+    auto* coreLogC = new G4LogicalVolume(coreSolid, FindMaterial("PMMA"),
+                                          mName + "_CoreC");
+    auto* coreLogS = new G4LogicalVolume(coreSolid, FindMaterial("Polystyrene"),
+                                          mName + "_CoreS");
+    coreLogC->SetVisAttributes(fVisAttrBlue);
+    coreLogS->SetVisAttributes(fVisAttrOrange);
+
+    // Place core inside cladding (same half-length → end faces flush)
+    new G4PVPlacement(nullptr, G4ThreeVector(), coreLogC, mName + "_CoreCPV",
+                      claddingLogC, false, 0, checkOverlaps);
+    new G4PVPlacement(nullptr, G4ThreeVector(), coreLogS, mName + "_CoreSPV",
+                      claddingLogS, false, 0, checkOverlaps);
+
+    // PMTcell logical (shared across all fiber ends in this module)
+    PMTcellLogical_[i] = new G4LogicalVolume(pmtTube, FindMaterial("Glass"),
+                                              "PMTcellLogical_");
+
+    // PMTcath inside PMTcell (single placement, copy 0)
+    PMTcathLogical_[i] = new G4LogicalVolume(cathTube, FindMaterial("Silicon"),
+                                              "PMTcathLogical_");
+    new G4PVPlacement(nullptr, G4ThreeVector(0., 0., cathDz),
+                      PMTcathLogical_[i], "PMTcathPhysical",
+                      PMTcellLogical_[i], false, 0, checkOverlaps);
+    new G4LogicalSkinSurface("Photocath_surf", PMTcathLogical_[i],
+                              FindSurface("SiPMsurf"));
+    PMTcathLogical_[i]->SetVisAttributes(fVisAttrGreen);
+
+    // Place all fibers (cladding + core) and SiPM windows
+    for (int ix = 0; ix < nF; ix++) {
+      for (int iy = 0; iy < nF; iy++) {
+        G4double fx = offset + ix * pitch;
+        G4double fy = offset + iy * pitch;
+        G4bool isC  = ((ix + iy) % 2 == 0);
+
+        // Cladding (contains core) placed in Pb
+        auto* cladLog = isC ? claddingLogC : claddingLogS;
+        new G4PVPlacement(nullptr, G4ThreeVector(fx, fy, slabZ), cladLog,
+                          mName + (isC ? "_CladCPV" : "_CladSPV"),
+                          ModuleLogical_[i], false, ix * nF + iy, checkOverlaps);
+
+        // PMTcell: copy 0 = Cherenkov, copy 1 = Scintillation
+        G4int sipmCopy = isC ? 0 : 1;
+        new G4PVPlacement(nullptr, G4ThreeVector(fx, fy, cellZ),
+                          PMTcellLogical_[i], "PMTcellPhysical",
+                          ModuleLogical_[i], false, sipmCopy, checkOverlaps);
+      }
+    }
+
+    DRsimInterface::DRsimModuleProperty prop;
+    prop.towerXY   = fTowerXY;   // {1, 2}: y=0 → C, y=1 → S
+    prop.ModuleNum = i;
+    ModuleProp_.push_back(prop);
+
+    PMTGLogical_[i] = nullptr;
+  }
+}
