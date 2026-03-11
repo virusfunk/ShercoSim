@@ -8,7 +8,25 @@ This package is running at Alma9 with GEANT4 11.3.2.
 After fetching the repository (Alma9, Geant4 11.3.2 installed), do
 
     cd build
+
+    # option 1. with visualization
     cmake -DWITH_GEANT4_UIVIS=ON -DCMAKE_INSTALL_PREFIX=../install ..
+    # option 2. without visualization
+    cmake ../ -DCMAKE_INSTALL_PREFIX=../install
+
+    make -j4 install
+
+If you use cvmfs for environment, do
+    
+    cd install
+    source envset.sh
+    cd ../build
+
+    # option 1. with visualization
+    cmake -DWITH_GEANT4_UIVIS=ON -DCMAKE_INSTALL_PREFIX=../install ..
+    # option 2. without visualization
+    cmake ../ -DCMAKE_INSTALL_PREFIX=../install
+    
     make -j4 install
 
 ### Run
@@ -30,6 +48,6 @@ e.g.)
 
 ### Visualization
 
-After compiling, inside /install folder, run
+After compiling, inside /install directory, run
 
     ./bin/DRsim

@@ -1,0 +1,14 @@
+universe = vanilla
+executable = Cosmic_e-_5GeV.sh
+arguments = $(ProcId)
+
+output = /your/path/log/$(ProcId).out
+error = /your/path/log/$(ProcId).err
+log = /your/path/log/$(ProcId).log
+
+request_memory = 1.0 GB
+should_transfer_files = YES
+when_to_transfer_output = ON_EXIT
+transfer_input_files =./bin, ./lib, ./init.mac, ./Cosmic_e-_5GeV.mac
+
+queue 500
