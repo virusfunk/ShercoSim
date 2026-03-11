@@ -2,9 +2,8 @@
 
 # particle=("e-" "mu-" "pi-" "proton")
 for i in "e-"
-# particle names(e-, pi-)
 do
-    run_beamOn="2"
+    run_beamOn="5"
 
     for j in 20 # energy [GeV]
     do
@@ -22,7 +21,6 @@ do
 
             echo "Beam angle - theta: $theta, phi: $phi"
 
-            # macroname="Cosmic_${i}_${j}GeV_angle${index}"
             macroname="Cosmic_${i}_${j}GeV"
                     
             gun_particle=$i
@@ -30,19 +28,11 @@ do
             root_name="${macroname}"
 
             ########################################################
-            results="/Your/Path/$root_name"            
+            results="/your/path/$root_name"            
             ########################################################
 
             echo "starting submit for $gun_energy $gun_particle and the output will be $root_name.root"   
-            
-            # ---------------------------
-            # for Center of Module
-            # theta : 0.0
-            # phi   : 0.0
-            # x(cm) : 0.00
-            # y(cm) : 0.00
-            # ---------------------------
-
+        
             echo "/DRsim/action/useHepMC False" >> $macroname.mac
             echo "/DRsim/action/useCalib False" >> $macroname.mac
             echo "/vis/disable" >> $macroname.mac
@@ -73,7 +63,6 @@ do
             echo "export PYTHIA8DATA=/cvmfs/sft.cern.ch/lcg/releases/LCG_96b/MCGenerators/pythia8/240/x86_64-centos7-gcc8-opt/share/Pythia8/xmldoc" >> $macroname.sh
             echo "export ROOT_INCLUDE_PATH=/cvmfs/sft.cern.ch/lcg/releases/LCG_96b/hepmc3/3.1.2/x86_64-centos7-gcc8-opt/include:\$ROOT_INCLUDE_PATH" >> $macroname.sh
             echo "export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:\$HEPMC_DIR/lib64:\$FASTJET_DIR/lib:\$PYTHIA_DIR/lib:\$PWD/lib" >> $macroname.sh
-            # echo "./bin/DRsim ${tower_material} $macroname.mac \$1 $results/root/$root_name" >> $macroname.sh
             echo "./bin/DRsim $macroname.mac \$1 $results/root/$root_name" >> $macroname.sh
 
             echo "universe = vanilla" > $macroname.sub
@@ -98,8 +87,6 @@ do
             echo "$i $j GeV"
 
             cp $macroname.* $results
-
-            # ((index++))
         done
     done
 done
